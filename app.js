@@ -236,4 +236,283 @@ async function deleteShipment(id) {
   if (!confirm('Xóa chuyến hàng này?')) return;
   await db.from('chuyen_hangs').delete().eq('id', id);
   await loadAll();
-  toast('Đã
+  toast('Đã xóa chuyến hàng.');
+  navigate(currentSection);
+}
+
+// ─── NEW SHIPMENT MODAL ───────────────────────────────────
+function openNewShipmentModal() {
+  let cargoCount = 1;
+
+  function cargoField(i) {
+    return `
+      <div class="cargo-item" id="cargo-${i}">
+        <button type="button" class="remove-cargo" onclick="document.getElementById('cargo-${i}').remove()">✕</button>
+        <div class="form-grid">
+          <div class="form-group"><label>Tên Kiện Hàng</label><input name="ten_kien_hang_${i}" placeholder="VD: Thép hộp" /></div>
+          <div class="form-group"><label>Chiều Dài</label><input name="chieu_dai_${i}" placeholder="VD: 6m" /></div>
+          <div class="form-group"><label>Chiều Cao</label><input name="chieu_cao_${i}" placeholder="VD: 2m" /></div>
+          <div class="form-group"><label>Nơi Xuất Hàng</label><input name="noi_xuat_${i}" placeholder="VD: Hà Nội" /></div>
+          <div class="form-group"><label>Nơi Nhận Hàng</label><input name="noi_nhan_${i}" placeholder="VD: TP.HCM" /></div>
+        </div>
+      </div>
+    `;
+  }
+
+  const truckOptions = trucks.map(t => `<option value="${t.id}">${t.bien_so_xe} — ${t.ten_nha_xe || ''} ${t.loai_xe || ''}</option>`).join('');
+  const romorocOptions = romorocs.map(r => `<option value="${r.id}">${r.bien_so} — ${r.loai_romoroc || ''}</option>`).join('');
+  const taiXeOptions = taiXes.map(tx => `<option value="${tx.id}">${tx.ten_tai_xe}</option>`).join('');
+
+  openModal(`
+    <h3>+ Chuyến Hàng Mới</h3>
+    <form id="shipment-form">
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="form-group">
+          <label>Xe</label>
+          <select name="truck_id" required>
+            <option value="">-- Chọn xe --</option>
+            ${truckOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Rơ Moóc</label>
+          <select name="romoroc_id">
+            <option value="">-- Chọn rơ moóc --</option>
+            ${romorocOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tài Xế</label>
+          <select name="tai_xe_id">
+            <option value="">-- Chọn tài xế --</option>
+            ${taiXeOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Ngày Khởi Hành</label>
+          <input type="date" name="ngay_khoi_hanh" required />
+        </div>
+        <div class="form-group">
+          <label>Ngày Đến</label>
+          <input type="date" name="ngay_den" required />
+        </div>
+        <div class="form-group">
+          <label>Trạng Thái</label>
+          <select name="trang_thai">
+            <option value="cho">Chờ</option>
+            <option value="dang-chay">Đang chạy</option>
+            <option value="hoan-thanh">Hoàn thành</option>
+          </select>
+        </div>
+      </div>
+      <hr class="divider"/>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong style="font-size:13px;">Kiện Hàng <span style="color:#94a3b8;font-weight:400;">(tùy chọn)</span></strong>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="addCargo()">+ Thêm kiện</button>
+      </div>
+      <div id="cargo-container">${cargoField(1)}</div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="btn btn-primary">Lưu chuyến hàng</button>
+        <button type="button" class="btn btn-secondary" onclick="forceCloseModal()">Hủy</button>
+      </div>
+    </form>
+  `);
+
+  window.addCargo = () => {
+    cargoCount++;
+    const container = document.getElementById('cargo-container');
+    container.insertAdjacentHTML('beforeend', cargoField(cargoCount));
+  };
+
+  document.getElementById('shipment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const { data: ch, error } = await db.from('chuyen_hangs').insert({
+      truck_id: fd.get('truck_id') || null,
+      romoroc_id: fd.get('romoroc_id') || null,
+      tai_xe_id: fd.get('tai_xe_id') || null,
+      ngay_khoi_hanh: fd.get('ngay_khoi_hanh'),
+      ngay_den: fd.get('ngay_den'),
+      trang_thai: fd.get('trang_thai'),
+    }).select().single();
+
+    if (error) { toast('Lỗi: ' + error.message); return; }
+
+    // save cargo items
+    const cargoItems = document.querySelectorAll('.cargo-item');
+    for (const item of cargoItems) {
+      const id = item.id.split('-')[1];
+      const ten = item.querySelector(`[name="ten_kien_hang_${id}"]`)?.value;
+      const dai = item.querySelector(`[name="chieu_dai_${id}"]`)?.value;
+      const cao = item.querySelector(`[name="chieu_cao_${id}"]`)?.value;
+      const xuat = item.querySelector(`[name="noi_xuat_${id}"]`)?.value;
+      const nhan = item.querySelector(`[name="noi_nhan_${id}"]`)?.value;
+      if (ten || dai || cao || xuat || nhan) {
+        await db.from('kien_hangs').insert({
+          chuyen_hang_id: ch.id,
+          ten_kien_hang: ten, chieu_dai: dai, chieu_cao: cao,
+          noi_xuat_hang: xuat, noi_nhan_hang: nhan,
+        });
+      }
+    }
+
+    await loadAll();
+    forceCloseModal();
+    toast('Đã lưu chuyến hàng!');
+    navigate(currentSection);
+  });
+}
+
+// ─── PROFILES ─────────────────────────────────────────────
+function renderProfiles() {
+  const el = document.getElementById('section-profiles');
+
+  const truckCards = trucks.length === 0
+    ? `<div class="empty-state"><div class="icon">🚛</div>Chưa có xe nào.</div>`
+    : trucks.map(t => `
+      <div class="profile-card">
+        <div class="profile-card-info">
+          <strong>${t.bien_so_xe}</strong>
+          <p>${t.ten_nha_xe || '—'} · ${t.loai_xe || '—'}</p>
+        </div>
+        <div class="profile-card-actions">
+          <button class="btn btn-sm btn-danger" onclick="deleteTruck('${t.id}')">Xóa</button>
+        </div>
+      </div>`).join('');
+
+  const romorocCards = romorocs.length === 0
+    ? `<div class="empty-state"><div class="icon">🔗</div>Chưa có rơ moóc nào.</div>`
+    : romorocs.map(r => `
+      <div class="profile-card">
+        <div class="profile-card-info">
+          <strong>${r.bien_so}</strong>
+          <p>${r.loai_romoroc || '—'}</p>
+        </div>
+        <div class="profile-card-actions">
+          <button class="btn btn-sm btn-danger" onclick="deleteRomoroc('${r.id}')">Xóa</button>
+        </div>
+      </div>`).join('');
+
+  const driverCards = taiXes.length === 0
+    ? `<div class="empty-state"><div class="icon">👤</div>Chưa có tài xế nào.</div>`
+    : taiXes.map(tx => `
+      <div class="profile-card">
+        <div class="profile-card-info">
+          <strong>${tx.ten_tai_xe}</strong>
+          <p>CCCD: ${tx.can_cuoc || '—'} · Bằng lái: ${tx.so_bang_lai || '—'}</p>
+        </div>
+        <div class="profile-card-actions">
+          <button class="btn btn-sm btn-danger" onclick="deleteTaiXe('${tx.id}')">Xóa</button>
+        </div>
+      </div>`).join('');
+
+  el.innerHTML = `
+    <div style="display:grid;gap:24px;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="card-title" style="margin:0;">🚛 Xe</div>
+          <button class="btn btn-primary btn-sm" onclick="openAddTruck()">+ Thêm xe</button>
+        </div>
+        <div class="profile-list">${truckCards}</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="card-title" style="margin:0;">🔗 Rơ Moóc</div>
+          <button class="btn btn-primary btn-sm" onclick="openAddRomoroc()">+ Thêm rơ moóc</button>
+        </div>
+        <div class="profile-list">${romorocCards}</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="card-title" style="margin:0;">👤 Tài Xế</div>
+          <button class="btn btn-primary btn-sm" onclick="openAddTaiXe()">+ Thêm tài xế</button>
+        </div>
+        <div class="profile-list">${driverCards}</div>
+      </div>
+    </div>
+  `;
+}
+
+function openAddTruck() {
+  openModal(`
+    <h3>+ Thêm Xe</h3>
+    <form id="truck-form">
+      <div class="form-grid" style="margin-bottom:16px;">
+        <div class="form-group"><label>Tên Nhà Xe</label><input name="ten_nha_xe" placeholder="VD: Công ty ABC" /></div>
+        <div class="form-group"><label>Loại Xe</label><input name="loai_xe" placeholder="VD: Đầu kéo" /></div>
+        <div class="form-group"><label>Biển Số Xe *</label><input name="bien_so_xe" placeholder="VD: 51C-123.45" required /></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" onclick="forceCloseModal()">Hủy</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('truck-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await db.from('trucks').insert({ ten_nha_xe: fd.get('ten_nha_xe'), loai_xe: fd.get('loai_xe'), bien_so_xe: fd.get('bien_so_xe') });
+    await loadAll(); forceCloseModal(); toast('Đã thêm xe!'); renderProfiles();
+  });
+}
+
+function openAddRomoroc() {
+  openModal(`
+    <h3>+ Thêm Rơ Moóc</h3>
+    <form id="romoroc-form">
+      <div class="form-grid" style="margin-bottom:16px;">
+        <div class="form-group"><label>Loại Rơ Moóc</label><input name="loai_romoroc" placeholder="VD: Sàn, Bồn, Container" /></div>
+        <div class="form-group"><label>Biển Số *</label><input name="bien_so" placeholder="VD: 51R-123.45" required /></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" onclick="forceCloseModal()">Hủy</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('romoroc-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await db.from('romorocs').insert({ loai_romoroc: fd.get('loai_romoroc'), bien_so: fd.get('bien_so') });
+    await loadAll(); forceCloseModal(); toast('Đã thêm rơ moóc!'); renderProfiles();
+  });
+}
+
+function openAddTaiXe() {
+  openModal(`
+    <h3>+ Thêm Tài Xế</h3>
+    <form id="taixe-form">
+      <div class="form-grid" style="margin-bottom:16px;">
+        <div class="form-group"><label>Tên Tài Xế *</label><input name="ten_tai_xe" placeholder="VD: Nguyễn Văn A" required /></div>
+        <div class="form-group"><label>Căn Cước Công Dân</label><input name="can_cuoc" placeholder="VD: 079012345678" /></div>
+        <div class="form-group"><label>Số Bằng Lái</label><input name="so_bang_lai" placeholder="VD: 079012345678" /></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" onclick="forceCloseModal()">Hủy</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('taixe-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await db.from('tai_xes').insert({ ten_tai_xe: fd.get('ten_tai_xe'), can_cuoc: fd.get('can_cuoc'), so_bang_lai: fd.get('so_bang_lai') });
+    await loadAll(); forceCloseModal(); toast('Đã thêm tài xế!'); renderProfiles();
+  });
+}
+
+async function deleteTruck(id) {
+  if (!confirm('Xóa xe này?')) return;
+  await db.from('trucks').delete().eq('id', id);
+  await loadAll(); toast('Đã xóa xe.'); renderProfiles();
+}
+async function deleteRomoroc(id) {
+  if (!confirm('Xóa rơ moóc này?')) return;
+  await db.from('romorocs').delete().eq('id', id);
+  await loadAll(); toast('Đã xóa rơ moóc.'); renderProfiles();
+}
+async function deleteTaiXe(id) {
+  if (!confirm('Xóa tài xế này?')) return;
+  await db.from('tai_xes').delete().eq('id', id);
+  await loadAll(); toast('Đã xóa tài xế.'); renderProfiles();
+}
