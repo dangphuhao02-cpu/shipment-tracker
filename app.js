@@ -6,15 +6,105 @@ let trucks = [], romorocs = [], taiXes = [], chuyenHangs = [];
 let currentSection = 'calendar';
 let calendarMonth = new Date().getMonth();
 let calendarYear = new Date().getFullYear();
-let modalShipment = null;
+let currentUser = null;
+let currentRole = null;
 
 // ─── Boot ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    await bootApp(session.user);
+  } else {
+    renderLogin();
+  }
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN') {
+      await bootApp(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      currentRole = null;
+      renderLogin();
+    }
+  });
+});
+
+async function bootApp(user) {
+  currentUser = user;
+  const { data: roleData } = await db.from('user_roles').select('role').eq('user_id', user.id).single();
+  currentRole = roleData?.role || 'staff';
   renderShell();
   await loadAll();
   navigate('calendar');
-});
+}
 
+// ─── Login ────────────────────────────────────────────────
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;">
+      <div style="background:white;border-radius:16px;border:1px solid #e2e8f0;padding:36px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
+        <div style="text-align:center;margin-bottom:28px;">
+          <div style="font-size:36px;margin-bottom:8px;">🚛</div>
+          <h1 style="font-size:20px;font-weight:700;color:#0f172a;">Theo Dõi Chuyến Hàng</h1>
+          <p style="font-size:13px;color:#94a3b8;margin-top:4px;">Đăng nhập để tiếp tục</p>
+        </div>
+        <div id="login-error" style="display:none;background:#fee2e2;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+        <form id="login-form">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="email@example.com" required />
+          </div>
+          <div class="form-group" style="margin-bottom:20px;">
+            <label>Mật Khẩu</label>
+            <input type="password" name="password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Đăng Nhập</button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const { error } = await db.auth.signInWithPassword({
+      email: fd.get('email'),
+      password: fd.get('password'),
+    });
+    if (error) {
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'block';
+      errEl.textContent = 'Email hoặc mật khẩu không đúng. Vui lòng thử lại.';
+    }
+  });
+}
+
+// ─── Shell ────────────────────────────────────────────────
+function renderShell() {
+  const isAdmin = currentRole === 'admin';
+  document.getElementById('app').innerHTML = `
+    <nav>
+      <h1>🚛 Theo Dõi Chuyến Hàng</h1>
+      <button onclick="navigate('calendar')" id="nav-calendar">📅 Lịch</button>
+      <button onclick="navigate('shipments')" id="nav-shipments">📦 Chuyến Hàng</button>
+      ${isAdmin ? `<button onclick="navigate('profiles')" id="nav-profiles">🗂️ Hồ Sơ</button>` : ''}
+      <button class="btn btn-secondary btn-sm" onclick="signOut()" style="margin-left:auto;">Đăng xuất</button>
+    </nav>
+    <div id="section-calendar" class="section"></div>
+    <div id="section-shipments" class="section"></div>
+    ${isAdmin ? `<div id="section-profiles" class="section"></div>` : ''}
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+      <div class="modal" id="modal-content"></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  `;
+}
+
+async function signOut() {
+  await db.auth.signOut();
+}
+
+// ─── Load Data ────────────────────────────────────────────
 async function loadAll() {
   const [t, r, tx, ch] = await Promise.all([
     db.from('trucks').select('*').order('created_at', { ascending: false }),
@@ -28,31 +118,14 @@ async function loadAll() {
   chuyenHangs = ch.data || [];
 }
 
-// ─── Shell ────────────────────────────────────────────────
-function renderShell() {
-  document.getElementById('app').innerHTML = `
-    <nav>
-      <h1>🚛 Theo Dõi Chuyến Hàng</h1>
-      <button onclick="navigate('calendar')" id="nav-calendar">📅 Lịch</button>
-      <button onclick="navigate('shipments')" id="nav-shipments">📦 Chuyến Hàng</button>
-      <button onclick="navigate('profiles')" id="nav-profiles">🗂️ Hồ Sơ</button>
-    </nav>
-    <div id="section-calendar" class="section"></div>
-    <div id="section-shipments" class="section"></div>
-    <div id="section-profiles" class="section"></div>
-    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-      <div class="modal" id="modal-content"></div>
-    </div>
-    <div class="toast" id="toast"></div>
-  `;
-}
-
 function navigate(section) {
   currentSection = section;
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('nav button:not([onclick="signOut()"])').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('nav-' + section).classList.add('active');
-  document.getElementById('section-' + section).classList.add('active');
+  const navBtn = document.getElementById('nav-' + section);
+  const sectionEl = document.getElementById('section-' + section);
+  if (navBtn) navBtn.classList.add('active');
+  if (sectionEl) sectionEl.classList.add('active');
   if (section === 'calendar') renderCalendar();
   if (section === 'shipments') renderShipments();
   if (section === 'profiles') renderProfiles();
@@ -82,21 +155,20 @@ function forceCloseModal() {
 // ─── CALENDAR ─────────────────────────────────────────────
 function renderCalendar() {
   const el = document.getElementById('section-calendar');
+  const isAdmin = currentRole === 'admin';
   const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
   const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
   const today = new Date();
 
-  // days header
   let daysHeader = '<th class="truck-label" style="position:sticky;left:0;z-index:2;background:#f1f5f9;">Xe</th>';
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = today.getDate() === d && today.getMonth() === calendarMonth && today.getFullYear() === calendarYear;
     daysHeader += `<th class="${isToday ? 'today-header' : ''}">${d}<br><span style="font-weight:400;font-size:10px;">${['CN','T2','T3','T4','T5','T6','T7'][new Date(calendarYear, calendarMonth, d).getDay()]}</span></th>`;
   }
 
-  // rows per truck
   let rows = '';
   if (trucks.length === 0) {
-    rows = `<tr><td colspan="${daysInMonth + 1}" style="text-align:center;padding:32px;color:#94a3b8;">Chưa có xe nào. Thêm xe trong mục Hồ Sơ.</td></tr>`;
+    rows = `<tr><td colspan="${daysInMonth + 1}" style="text-align:center;padding:32px;color:#94a3b8;">Chưa có xe nào. ${isAdmin ? 'Thêm xe trong mục Hồ Sơ.' : 'Liên hệ admin để thêm xe.'}</td></tr>`;
   } else {
     trucks.forEach(truck => {
       let cells = `<td class="truck-label"><strong>${truck.bien_so_xe}</strong><small>${truck.ten_nha_xe || ''} · ${truck.loai_xe || ''}</small></td>`;
@@ -119,7 +191,7 @@ function renderCalendar() {
       <button class="btn btn-secondary btn-sm" onclick="shiftMonth(-1)">← Trước</button>
       <h2>${monthNames[calendarMonth]} ${calendarYear}</h2>
       <button class="btn btn-secondary btn-sm" onclick="shiftMonth(1)">Sau →</button>
-      <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="openNewShipmentModal()">+ Chuyến mới</button>
+      ${isAdmin ? `<button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="openNewShipmentModal()">+ Chuyến mới</button>` : ''}
     </div>
     <div class="calendar-grid">
       <table class="calendar-table">
@@ -140,6 +212,7 @@ function shiftMonth(dir) {
 // ─── SHIPMENTS LIST ───────────────────────────────────────
 function renderShipments() {
   const el = document.getElementById('section-shipments');
+  const isAdmin = currentRole === 'admin';
   const statusLabel = { cho: 'Chờ', 'dang-chay': 'Đang chạy', 'hoan-thanh': 'Hoàn thành' };
 
   let cards = '';
@@ -165,7 +238,7 @@ function renderShipments() {
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn btn-sm btn-secondary" onclick="viewShipment('${ch.id}')">Chi tiết</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteShipment('${ch.id}')">Xóa</button>
+              ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteShipment('${ch.id}')">Xóa</button>` : ''}
             </div>
           </div>
         </div>
@@ -176,7 +249,7 @@ function renderShipments() {
   el.innerHTML = `
     <div class="section-header">
       <h2>Danh Sách Chuyến Hàng</h2>
-      <button class="btn btn-primary" onclick="openNewShipmentModal()">+ Chuyến mới</button>
+      ${isAdmin ? `<button class="btn btn-primary" onclick="openNewShipmentModal()">+ Chuyến mới</button>` : ''}
     </div>
     ${cards}
   `;
@@ -186,6 +259,7 @@ function renderShipments() {
 function viewShipment(id) {
   const ch = chuyenHangs.find(c => c.id === id);
   if (!ch) return;
+  const isAdmin = currentRole === 'admin';
   const statusLabel = { cho: 'Chờ', 'dang-chay': 'Đang chạy', 'hoan-thanh': 'Hoàn thành' };
   const cargo = (ch.kien_hangs || []).map(k => `
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px;font-size:13px;">
@@ -233,6 +307,7 @@ async function updateStatus(id, status) {
 }
 
 async function deleteShipment(id) {
+  if (currentRole !== 'admin') { toast('Bạn không có quyền xóa.'); return; }
   if (!confirm('Xóa chuyến hàng này?')) return;
   await db.from('chuyen_hangs').delete().eq('id', id);
   await loadAll();
@@ -242,6 +317,7 @@ async function deleteShipment(id) {
 
 // ─── NEW SHIPMENT MODAL ───────────────────────────────────
 function openNewShipmentModal() {
+  if (currentRole !== 'admin') { toast('Bạn không có quyền thêm chuyến hàng.'); return; }
   let cargoCount = 1;
 
   function cargoField(i) {
@@ -320,8 +396,7 @@ function openNewShipmentModal() {
 
   window.addCargo = () => {
     cargoCount++;
-    const container = document.getElementById('cargo-container');
-    container.insertAdjacentHTML('beforeend', cargoField(cargoCount));
+    document.getElementById('cargo-container').insertAdjacentHTML('beforeend', cargoField(cargoCount));
   };
 
   document.getElementById('shipment-form').addEventListener('submit', async (e) => {
@@ -338,7 +413,6 @@ function openNewShipmentModal() {
 
     if (error) { toast('Lỗi: ' + error.message); return; }
 
-    // save cargo items
     const cargoItems = document.querySelectorAll('.cargo-item');
     for (const item of cargoItems) {
       const id = item.id.split('-')[1];
@@ -363,8 +437,9 @@ function openNewShipmentModal() {
   });
 }
 
-// ─── PROFILES ─────────────────────────────────────────────
+// ─── PROFILES (Admin only) ────────────────────────────────
 function renderProfiles() {
+  if (currentRole !== 'admin') { navigate('calendar'); return; }
   const el = document.getElementById('section-profiles');
 
   const truckCards = trucks.length === 0
@@ -502,16 +577,19 @@ function openAddTaiXe() {
 }
 
 async function deleteTruck(id) {
+  if (currentRole !== 'admin') return;
   if (!confirm('Xóa xe này?')) return;
   await db.from('trucks').delete().eq('id', id);
   await loadAll(); toast('Đã xóa xe.'); renderProfiles();
 }
 async function deleteRomoroc(id) {
+  if (currentRole !== 'admin') return;
   if (!confirm('Xóa rơ moóc này?')) return;
   await db.from('romorocs').delete().eq('id', id);
   await loadAll(); toast('Đã xóa rơ moóc.'); renderProfiles();
 }
 async function deleteTaiXe(id) {
+  if (currentRole !== 'admin') return;
   if (!confirm('Xóa tài xế này?')) return;
   await db.from('tai_xes').delete().eq('id', id);
   await loadAll(); toast('Đã xóa tài xế.'); renderProfiles();
