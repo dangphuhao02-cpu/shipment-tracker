@@ -1,0 +1,65 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+#app { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+nav { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; flex-wrap: wrap; align-items: center; }
+nav h1 { font-size: 18px; font-weight: 700; color: #0f172a; margin-right: auto; }
+nav button { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; background: #f1f5f9; color: #475569; transition: all 0.15s; }
+nav button.active { background: #2563eb; color: white; }
+nav button:hover:not(.active) { background: #e2e8f0; }
+
+.section { display: none; }
+.section.active { display: block; }
+
+.card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #0f172a; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+.form-group input, .form-group select, .form-group textarea { padding: 9px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 14px; color: #1e293b; background: #f8fafc; transition: border 0.15s; width: 100%; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: #2563eb; background: white; }
+
+.btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.15s; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #f1f5f9; color: #475569; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-danger:hover { background: #fecaca; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-success { background: #dcfce7; color: #16a34a; }
+.btn-success:hover { background: #bbf7d0; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; }
+.badge-cho { background: #fef9c3; color: #854d0e; }
+.badge-dang-chay { background: #dbeafe; color: #1d4ed8; }
+.badge-hoan-thanh { background: #dcfce7; color: #15803d; }
+
+.profile-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.profile-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: flex-start; }
+.profile-card-info p { font-size: 13px; color: #64748b; margin-top: 2px; }
+.profile-card-info strong { font-size: 14px; color: #0f172a; }
+.profile-card-actions { display: flex; gap: 6px; }
+
+.divider { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
+
+.cargo-item { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; position: relative; }
+.cargo-item .remove-cargo { position: absolute; top: 8px; right: 8px; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+
+/* Calendar */
+.calendar-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.calendar-header h2 { font-size: 16px; font-weight: 600; }
+.calendar-grid { overflow-x: auto; }
+.calendar-table { border-collapse: collapse; min-width: 100%; }
+.calendar-table th { background: #f1f5f9; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #475569; text-align: center; border: 1px solid #e2e8f0; white-space: nowrap; min-width: 80px; }
+.calendar-table th.today-header { background: #dbeafe; color: #1d4ed8; }
+.calendar-table td { border: 1px solid #e2e8f0; padding: 6px 8px; vertical-align: top; min-width: 80px; }
+.calendar-table td.truck-label { font-size: 13px; font-weight: 500; color: #0f172a; white-space: nowrap; padding: 8px 12px; background: white; position: sticky; left: 0; z-index: 1; min-width: 160px; }
+.calendar-table td.truck-label small { display: block; font-size: 11px; color: #94a3b8; font-weight: 400; }
+.cal-chip { border-radius: 6px; padding: 3px 7px; font-size: 11px; font-weight: 500; margin-bottom: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+.cal-chip-cho { background: #fef9c3; color: #854d0e; }
+.cal-chip-dang-chay { background: #dbeafe; color: #1d4ed8; }
+.cal-chip-hoan-thanh { background: #dcfce7; color: #15803d; }
+
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center;
